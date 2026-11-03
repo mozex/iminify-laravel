@@ -54,14 +54,14 @@
         "phpstan/phpstan-phpunit": "^2.0",
         "spatie/image-optimizer": "^1.10",
         "spatie/laravel-image-optimizer": "^1.8",
-        "spatie/laravel-medialibrary": "^11.13"
+        "spatie/laravel-medialibrary": "^11.23"
     },
     "conflict": {
         "spatie/image-optimizer": "<1.10.0"
     },
     "suggest": {
         "spatie/laravel-image-optimizer": "To optimize uploads and any file through Iminify with its config list",
-        "spatie/laravel-medialibrary": "To optimize Media Library conversions and responsive images through Iminify"
+        "spatie/laravel-medialibrary": "To optimize Media Library conversions and responsive images through Iminify, from version 11.23"
     },
     "autoload": {
         "psr-4": {
