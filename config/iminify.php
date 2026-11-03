@@ -19,7 +19,7 @@ return [
      * How many seconds one request may take before it fails. A wait for an
      * image is many requests, so this doesn't limit how long a wait takes.
      */
-    'timeout' => (int) (env('IMINIFY_TIMEOUT') ?: 30),
+    'timeout' => (int) (filled(env('IMINIFY_TIMEOUT')) ? env('IMINIFY_TIMEOUT') : 30),
 
     /*
      * What the optimizer sends with each file it takes from Spatie's image
@@ -36,8 +36,9 @@ return [
 
     /*
      * Media Library's responsive images skip the optimizer you configure and
-     * always run Spatie's own binaries. Set this to true to send each width
-     * through Iminify instead, which counts one image per width.
+     * always run Spatie's own binaries. Set this to true to run your
+     * image_optimizers list on each width instead, with Iminify in place of
+     * the binaries it replaces, which counts one image per width.
      */
     'media_library' => [
         'responsive_images' => (bool) env('IMINIFY_RESPONSIVE_IMAGES', false),

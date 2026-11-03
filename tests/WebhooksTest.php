@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Testing\TestResponse;
 use Mozex\Iminify\Enums\WebhookEventType;
 use Mozex\Iminify\Laravel\Events\WebhookReceivedEvent;
+use Mozex\Iminify\Laravel\Tests\Fakes\ReadsSession;
 use Mozex\Iminify\Laravel\Tests\Fakes\StrictCsrfToken;
 use Mozex\Iminify\Laravel\Tests\Fakes\StrictRequestForgery;
 use Mozex\Iminify\Testing\Fixtures;
@@ -48,19 +49,24 @@ function sendWebhook(string $body, ?string $signature): TestResponse
 }
 
 describe('a signed webhook', function () {
-    it('dispatches the event it read and answers 204, past the web group\'s CSRF check and without a session', function () {
+    it('dispatches the event it read and answers 204, past the web group\'s CSRF check', function () {
         app(Kernel::class)->appendMiddlewareToGroup('web', class_exists(PreventRequestForgery::class) ? StrictRequestForgery::class : StrictCsrfToken::class);
         Route::middleware('web')->post('another', fn (): string => 'reached');
         $body = webhookBody();
 
         $this->call('POST', '/another')->assertStatus(419);
-        $response = sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
-
-        expect($response->headers->getCookies())->toBe([]);
+        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
 
         Event::assertDispatched(WebhookReceivedEvent::class, fn (WebhookReceivedEvent $event): bool => $event->event->id === 'delivery-1'
             && $event->event->type === WebhookEventType::ImageCompleted
             && $event->event->image()?->id === 'image-7');
+    });
+
+    it('keeps the session, which an app\'s own web middleware may read', function () {
+        app(Kernel::class)->appendMiddlewareToGroup('web', ReadsSession::class);
+        $body = webhookBody('ping');
+
+        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
     });
 
     it('takes a secret written with spaces around it', function () {

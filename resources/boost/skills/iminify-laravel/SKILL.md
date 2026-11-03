@@ -44,7 +44,7 @@ Replace jpegoptim, pngquant, optipng, gifsicle and cwebp in `config/media-librar
 Svgo and avifenc stay for the SVG and AVIF files Iminify doesn't read. A list with only `IminifyOptimizer` in it silently gets Spatie's default binaries: spatie/image-optimizer's factory, which Media Library calls, recognizes only Spatie's seven built-in classes. That's the first thing to check when images aren't getting smaller.
 
 - For some conversions only, leave the config alone and call `->optimize(IminifyOptimizer::chain())` on those conversions.
-- Responsive images ignore the config and always run the binaries; `IMINIFY_RESPONSIVE_IMAGES=true` sends each width through the chain `image_optimizers` builds, with Iminify added when it's missing.
+- Responsive images ignore the config and always run the binaries; `IMINIFY_RESPONSIVE_IMAGES=true` runs the `image_optimizers` list on each width, with Iminify in place of jpegoptim, pngquant, optipng, gifsicle and cwebp when the list lacks it.
 - The original upload is never optimized, only conversions.
 - Queued conversions are fine: the optimizer carries only its options, never the key; an `api_key` option is dropped.
 - Each optimized file counts one image against the account's daily images: one per conversion, plus one per responsive width when that's on. `php artisan media-library:regenerate --only=<conversion>` optimizes existing media again and counts again.
@@ -74,7 +74,7 @@ Svgo and avifenc stay for the SVG and AVIF files Iminify doesn't read. A list wi
 
 ```php
 // routes/web.php
-Route::iminifyWebhooks(); // POST /iminify/webhooks, named iminify.webhooks, without the CSRF check, session or cookies
+Route::iminifyWebhooks(); // POST /iminify/webhooks, named iminify.webhooks, without the CSRF check
 ```
 
 Set `IMINIFY_WEBHOOK_SECRET` to the `whsec_` secret from Settings, Webhooks. The route checks the signature against the raw body, answers 400 to anything else, and dispatches `Mozex\Iminify\Laravel\Events\WebhookReceivedEvent`:

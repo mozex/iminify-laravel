@@ -9,10 +9,12 @@ use Illuminate\Support\Sleep;
 use Mozex\Iminify\Client;
 use Mozex\Iminify\Exceptions\DailyLimitReachedException;
 use Mozex\Iminify\Exceptions\IminifyException;
+use Mozex\Iminify\Exceptions\WaitTimeoutException;
 use Mozex\Iminify\Http\ApiRequest;
 use Mozex\Iminify\Laravel\Events\OptimizationSkippedEvent;
 use Mozex\Iminify\Laravel\Facades\Iminify;
 use Mozex\Iminify\Laravel\IminifyOptimizer;
+use Mozex\Iminify\Laravel\Tests\Fakes\QueuedSkipListener;
 use Mozex\Iminify\Testing\Fixtures;
 use Psr\Log\NullLogger;
 use Spatie\ImageOptimizer\Image;
@@ -174,7 +176,26 @@ describe('a file it leaves as it was', function () {
 
         expect($restored->path)->toBe($path)
             ->and($restored->reason)->toBeInstanceOf(IminifyException::class)
-            ->and($restored->reason->getMessage())->toBe('['.DailyLimitReachedException::class.'] Out for today.');
+            ->and($restored->reason->getMessage())->toBe('['.DailyLimitReachedException::class.'] Out for today.')
+            ->and($restored->reason->getCode())->toBe($events[0]->reason->getCode());
+    });
+
+    it('serializes whatever its reason holds, a closure included', function () {
+        $event = new OptimizationSkippedEvent('/photo.jpg', new WaitTimeoutException('Iminify took too long.', fn (): null => null));
+
+        $restored = unserialize(serialize($event));
+
+        expect($restored->reason->getMessage())->toBe('['.WaitTimeoutException::class.'] Iminify took too long.');
+    });
+
+    it('reaches a ShouldQueue listener through the queue', function () {
+        Config::set('queue.default', 'sync');
+        Event::listen(OptimizationSkippedEvent::class, QueuedSkipListener::class);
+        QueuedSkipListener::$heard = [];
+        Iminify::fake([Fixtures::refusal('daily_limit_reached', 429, 'Out for today.')]);
+
+        expect(fn () => (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger))->toThrow(DailyLimitReachedException::class)
+            ->and(QueuedSkipListener::$heard)->toBe(['['.DailyLimitReachedException::class.'] Out for today.']);
     });
 
     it('sends no event for a file Iminify found nothing to save in', function () {

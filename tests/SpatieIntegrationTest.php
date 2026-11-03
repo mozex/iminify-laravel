@@ -16,7 +16,11 @@ use Mozex\Iminify\Laravel\Tests\Fixtures\Post;
 use Spatie\ImageOptimizer\OptimizerChain;
 use Spatie\ImageOptimizer\OptimizerChainFactory;
 use Spatie\ImageOptimizer\Optimizers\Avifenc;
+use Spatie\ImageOptimizer\Optimizers\Cwebp;
+use Spatie\ImageOptimizer\Optimizers\Gifsicle;
 use Spatie\ImageOptimizer\Optimizers\Jpegoptim;
+use Spatie\ImageOptimizer\Optimizers\Optipng;
+use Spatie\ImageOptimizer\Optimizers\Pngquant;
 use Spatie\ImageOptimizer\Optimizers\Svgo;
 use Spatie\LaravelImageOptimizer\Middlewares\OptimizeImages;
 use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
@@ -114,17 +118,20 @@ describe('Media Library', function () {
             ->and(RecordingOptimizer::$handled)->toBe(count($widths));
     });
 
-    it('builds the responsive chain from the config, adding Iminify where the list lacks it', function () {
-        $chain = fn (): OptimizerChain => (fn (): OptimizerChain => $this->optimizerChain())->call(app(ResponsiveImageGenerator::class));
+    it('builds the responsive chain from the config, with Iminify in place of the binaries it replaces', function (array $list, array $expected, array $options) {
+        Config::set('media-library.image_optimizers', $list);
 
-        Config::set('media-library.image_optimizers', [Svgo::class => [], Avifenc::class => []]);
-        $added = optimizerClasses($chain());
+        $chain = (fn (): OptimizerChain => $this->optimizerChain())->call(app(ResponsiveImageGenerator::class));
+        $iminify = array_values(array_filter($chain->getOptimizers(), fn (object $optimizer): bool => $optimizer instanceof IminifyOptimizer));
 
-        Config::set('media-library.image_optimizers', [IminifyOptimizer::class => [], Svgo::class => [], Avifenc::class => []]);
-
-        expect($added)->toBe([Svgo::class, Avifenc::class, IminifyOptimizer::class])
-            ->and(optimizerClasses($chain()))->toBe([IminifyOptimizer::class, Svgo::class, Avifenc::class]);
-    });
+        expect(optimizerClasses($chain))->toBe($expected)
+            ->and($iminify[0]->options ?? null)->toBe($options);
+    })->with([
+        'svgo and avifenc' => [[Svgo::class => [], Avifenc::class => []], [Svgo::class, Avifenc::class, IminifyOptimizer::class], []],
+        'Iminify listed' => [[IminifyOptimizer::class => ['level' => 'ultra'], Svgo::class => [], Avifenc::class => []], [IminifyOptimizer::class, Svgo::class, Avifenc::class], ['level' => 'ultra']],
+        'Media Library\'s defaults' => [[Jpegoptim::class => [], Pngquant::class => [], Optipng::class => [], Svgo::class => [], Gifsicle::class => [], Cwebp::class => [], Avifenc::class => []], [Svgo::class, Avifenc::class, IminifyOptimizer::class], []],
+        'Iminify alone, which the factory answers with its defaults' => [[IminifyOptimizer::class => ['level' => 'ultra']], [Svgo::class, Avifenc::class, IminifyOptimizer::class], ['level' => 'ultra']],
+    ]);
 
     it('carries the chain through a queued conversion with no key in it, even one put in its options', function () {
         Config::set('iminify.api_key', 'a-secret-key');

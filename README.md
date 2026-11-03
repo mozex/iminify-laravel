@@ -118,7 +118,7 @@ The package supports Media Library 11.23 and newer.
 
 ### Responsive images
 
-Media Library's responsive images ignore `image_optimizers` and always run the default binaries. Turn this on to send each width through the chain `image_optimizers` builds instead, with Iminify added when the list lacks it, so an AVIF width still reaches avifenc:
+Media Library's responsive images ignore `image_optimizers` and always run the default binaries. Turn this on to run your `image_optimizers` list on each width instead, so an AVIF width still reaches avifenc. When the list lacks Iminify, it takes the place of jpegoptim, pngquant, optipng, gifsicle and cwebp there, so no width is compressed twice:
 
 ```dotenv
 IMINIFY_RESPONSIVE_IMAGES=true
@@ -208,7 +208,7 @@ A listener that throws is reported to your exception handler, and never takes th
 
 ## Webhooks
 
-Register the route in `routes/web.php`. It leaves out the CSRF check, which a webhook can't pass, and the session and cookies, which a webhook doesn't keep:
+Register the route in `routes/web.php`. It leaves out the CSRF check, which a webhook can't pass:
 
 ```php
 Route::iminifyWebhooks();

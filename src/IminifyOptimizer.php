@@ -102,8 +102,11 @@ class IminifyOptimizer extends BaseOptimizer
         } catch (Throwable $listenerException) {
             $logger->warning("A listener of OptimizationSkippedEvent failed: {$listenerException->getMessage()}");
 
-            if ($container->bound(ExceptionHandler::class)) {
-                $container->make(ExceptionHandler::class)->report($listenerException);
+            try {
+                if ($container->bound(ExceptionHandler::class)) {
+                    $container->make(ExceptionHandler::class)->report($listenerException);
+                }
+            } catch (Throwable) {
             }
         }
     }

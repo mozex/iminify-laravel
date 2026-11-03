@@ -56,9 +56,9 @@ class IminifyServiceProvider extends PackageServiceProvider
 
     public function packageBooted(): void
     {
-        // Iminify sends no CSRF token and keeps no cookies, so the route goes without the check,
-        // under every class a Laravel version gives it, and without a session, which would be a
-        // new one for every delivery. The router also leaves out a subclass of one left out.
+        // Iminify sends no CSRF token, so the route goes without the check under every class a
+        // Laravel version gives it; the router also leaves out a subclass of one left out. The
+        // session stays, since an app's own web middleware may read it.
         Router::macro('iminifyWebhooks', function (string $uri = 'iminify/webhooks', string $name = 'iminify.webhooks'): Route {
             /** @var Router $this */
             return $this->post($uri, [WebhookController::class, '__invoke'])
@@ -67,10 +67,6 @@ class IminifyServiceProvider extends PackageServiceProvider
                     'Illuminate\Foundation\Http\Middleware\PreventRequestForgery',
                     'Illuminate\Foundation\Http\Middleware\ValidateCsrfToken',
                     'Illuminate\Foundation\Http\Middleware\VerifyCsrfToken',
-                    'Illuminate\Session\Middleware\StartSession',
-                    'Illuminate\View\Middleware\ShareErrorsFromSession',
-                    'Illuminate\Cookie\Middleware\EncryptCookies',
-                    'Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse',
                 ])
                 ->name($name);
         });
