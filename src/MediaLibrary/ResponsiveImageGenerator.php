@@ -31,6 +31,11 @@ use Spatie\TemporaryDirectory\TemporaryDirectory;
  */
 class ResponsiveImageGenerator extends BaseGenerator
 {
+    /**
+     * Spatie's optimizers for the formats Iminify takes, which it replaces in a chain.
+     */
+    protected const REPLACED = [Jpegoptim::class, Pngquant::class, Optipng::class, Gifsicle::class, Cwebp::class];
+
     public function generateResponsiveImage(
         Media $media,
         string $baseImage,
@@ -62,11 +67,6 @@ class ResponsiveImageGenerator extends BaseGenerator
 
         ResponsiveImage::register($media, $fileName, $conversionName);
     }
-
-    /**
-     * Spatie's optimizers for the formats Iminify takes, which it replaces in a chain.
-     */
-    protected const REPLACED = [Jpegoptim::class, Pngquant::class, Optipng::class, Gifsicle::class, Cwebp::class];
 
     protected function optimizerChain(): OptimizerChain
     {

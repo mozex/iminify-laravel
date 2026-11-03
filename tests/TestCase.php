@@ -18,7 +18,7 @@ class TestCase extends Orchestra
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('k', 32)));
         $app['config']->set('iminify.api_key', 'test-key');
         $app['config']->set('database.default', 'testing');
-        $app['config']->set('filesystems.disks.media', ['driver' => 'local', 'root' => sys_get_temp_dir().'/iminify-laravel-media-'.getmypid()]);
+        $app['config']->set('filesystems.disks.media', ['driver' => 'local', 'root' => mediaRoot()]);
         $app['config']->set('media-library.disk_name', 'media');
         $app['config']->set('media-library.image_driver', 'gd');
         $app['config']->set('media-library.queue_conversions_by_default', false);

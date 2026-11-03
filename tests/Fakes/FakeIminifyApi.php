@@ -47,7 +47,7 @@ class FakeIminifyApi implements TransporterContract
      */
     public function uploadedNames(): array
     {
-        return array_values(array_map(fn (array $image): string => $image['name'], $this->images));
+        return array_column($this->images, 'name');
     }
 
     protected function receive(ApiRequest $request): ApiResponse

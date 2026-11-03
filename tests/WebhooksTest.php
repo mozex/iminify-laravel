@@ -38,6 +38,14 @@ function webhookBody(string $type = 'image.completed'): string
 }
 
 /**
+ * The signature Iminify sends with a body, under the app's secret.
+ */
+function signWebhook(string $body, ?int $timestamp = null): string
+{
+    return (new WebhookVerifier(WEBHOOK_SECRET))->sign($body, $timestamp);
+}
+
+/**
  * Posts a body to the route the way Iminify does: raw JSON with its signature header.
  */
 function sendWebhook(string $body, ?string $signature): TestResponse
@@ -55,7 +63,7 @@ describe('a signed webhook', function () {
         $body = webhookBody();
 
         $this->call('POST', '/another')->assertStatus(419);
-        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
+        sendWebhook($body, signWebhook($body))->assertNoContent();
 
         Event::assertDispatched(WebhookReceivedEvent::class, fn (WebhookReceivedEvent $event): bool => $event->event->id === 'delivery-1'
             && $event->event->type === WebhookEventType::ImageCompleted
@@ -66,14 +74,14 @@ describe('a signed webhook', function () {
         app(Kernel::class)->appendMiddlewareToGroup('web', ReadsSession::class);
         $body = webhookBody('ping');
 
-        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
+        sendWebhook($body, signWebhook($body))->assertNoContent();
     });
 
     it('takes a secret written with spaces around it', function () {
         Config::set('iminify.webhooks.secret', ' '.WEBHOOK_SECRET." \n");
         $body = webhookBody('ping');
 
-        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
+        sendWebhook($body, signWebhook($body))->assertNoContent();
 
         Event::assertDispatched(WebhookReceivedEvent::class, fn (WebhookReceivedEvent $event): bool => $event->event->type === WebhookEventType::Ping);
     });
@@ -96,15 +104,15 @@ describe('a webhook that can\'t be trusted', function () {
     })->with([
         'no signature' => [fn (string $body): ?string => null],
         'another secret' => [fn (string $body): string => (new WebhookVerifier('whsec_another'))->sign($body)],
-        'a stale time' => [fn (string $body): string => (new WebhookVerifier(WEBHOOK_SECRET))->sign($body, time() - 3600)],
-        'a changed body' => [fn (string $body): string => (new WebhookVerifier(WEBHOOK_SECRET))->sign($body.' ')],
+        'a stale time' => [fn (string $body): string => signWebhook($body, time() - 3600)],
+        'a changed body' => [fn (string $body): string => signWebhook($body.' ')],
         'a header that reads as nothing' => [fn (string $body): string => 'garbage'],
     ]);
 
     it('is answered 400 when the signed body is not an event', function () {
         $body = '{"not": "an event"}';
 
-        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertStatus(400);
+        sendWebhook($body, signWebhook($body))->assertStatus(400);
 
         Event::assertNotDispatched(WebhookReceivedEvent::class);
     });
@@ -113,7 +121,7 @@ describe('a webhook that can\'t be trusted', function () {
         Config::set('iminify.webhooks.tolerance', 7200);
         $body = webhookBody();
 
-        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body, time() - 3600))->assertNoContent();
+        sendWebhook($body, signWebhook($body, time() - 3600))->assertNoContent();
     });
 });
 
@@ -123,7 +131,7 @@ describe('an app with no secret', function () {
         $this->withoutExceptionHandling();
         $body = webhookBody();
 
-        expect(fn () => sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body)))->toThrow(RuntimeException::class, 'IMINIFY_WEBHOOK_SECRET');
+        expect(fn () => sendWebhook($body, signWebhook($body)))->toThrow(RuntimeException::class, 'IMINIFY_WEBHOOK_SECRET');
 
         Event::assertNotDispatched(WebhookReceivedEvent::class);
     })->with([null, '', '  ']);

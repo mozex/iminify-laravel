@@ -11,6 +11,7 @@ use Mozex\Iminify\Exceptions\DailyLimitReachedException;
 use Mozex\Iminify\Exceptions\IminifyException;
 use Mozex\Iminify\Exceptions\WaitTimeoutException;
 use Mozex\Iminify\Http\ApiRequest;
+use Mozex\Iminify\Http\ApiResponse;
 use Mozex\Iminify\Laravel\Events\OptimizationSkippedEvent;
 use Mozex\Iminify\Laravel\Facades\Iminify;
 use Mozex\Iminify\Laravel\IminifyOptimizer;
@@ -31,6 +32,16 @@ function uploadFields(): array
     expect($upload)->toBeInstanceOf(ApiRequest::class);
 
     return $upload->fields;
+}
+
+/**
+ * The answers for a file Iminify found nothing to save in: the upload, the wait and the delete.
+ *
+ * @return list<array<string, mixed>|ApiResponse>
+ */
+function alreadyOptimized(): array
+{
+    return [Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()];
 }
 
 describe('the app\'s client', function () {
@@ -59,7 +70,7 @@ describe('the app\'s client', function () {
 describe('its options', function () {
     it('takes the level, the metadata choice and the wait from the config', function () {
         Config::set('iminify.optimizer', ['level' => 'ultra', 'keep_metadata' => true, 'timeout' => 30]);
-        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+        Iminify::fake(alreadyOptimized());
 
         $optimizer = new IminifyOptimizer;
         $optimizer->handle(new Image(jpeg()), new NullLogger);
@@ -71,7 +82,7 @@ describe('its options', function () {
 
     it('lets its own options win over the config, however it was built', function (Closure $build) {
         Config::set('iminify.optimizer', ['level' => 'ultra', 'keep_metadata' => true, 'timeout' => 30]);
-        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+        Iminify::fake(alreadyOptimized());
 
         $optimizer = $build();
         $optimizer->handle(new Image(jpeg()), new NullLogger);
@@ -85,7 +96,7 @@ describe('its options', function () {
 
     it('keeps the config\'s value where its own option is null or blank', function (mixed $own) {
         Config::set('iminify.optimizer.level', 'ultra');
-        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+        Iminify::fake(alreadyOptimized());
 
         (new IminifyOptimizer(['level' => $own]))->handle(new Image(jpeg()), new NullLogger);
 
@@ -94,7 +105,7 @@ describe('its options', function () {
 
     it('sends no level when the config\'s is blank, as an empty line in .env leaves it', function () {
         Config::set('iminify.optimizer.level', '');
-        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+        Iminify::fake(alreadyOptimized());
 
         (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger);
 
@@ -107,7 +118,7 @@ describe('its options', function () {
     });
 
     it('leaves the level to the API when neither sets one', function () {
-        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+        Iminify::fake(alreadyOptimized());
 
         (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger);
 
@@ -200,7 +211,7 @@ describe('a file it leaves as it was', function () {
 
     it('sends no event for a file Iminify found nothing to save in', function () {
         Event::fake([OptimizationSkippedEvent::class]);
-        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+        Iminify::fake(alreadyOptimized());
 
         (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger);
 
@@ -211,12 +222,7 @@ describe('a file it leaves as it was', function () {
 describe('a rate limit', function () {
     it('is waited out through Laravel\'s Sleep, so a test can fake it', function () {
         Sleep::fake();
-        Iminify::fake([
-            Fixtures::refusal('rate_limited', 429, retryAfter: 7),
-            Fixtures::image(['status' => 'already-optimized']),
-            Fixtures::image(['status' => 'already-optimized']),
-            Fixtures::noContent(),
-        ]);
+        Iminify::fake([Fixtures::refusal('rate_limited', 429, retryAfter: 7), ...alreadyOptimized()]);
 
         (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger);
 
