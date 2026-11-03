@@ -1,0 +1,8 @@
+{
+    "$schema": "https://context7.com/schema/context7.json",
+    "url": "https://context7.com/mozex/iminify-laravel",
+    "public_key": "pk_2dXAZIEpHP6qQeGGTuyQt",
+    "projectTitle": "Iminify Laravel",
+    "description": "Laravel wrapper for the Iminify image optimization API, with webhooks and an optimizer for Spatie's Media Library",
+    "folders": []
+}

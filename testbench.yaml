@@ -1,0 +1,2 @@
+providers:
+  - Mozex\Iminify\Laravel\IminifyServiceProvider
