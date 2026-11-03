@@ -2,7 +2,14 @@
     "name": "mozex/iminify-laravel",
     "description": "Laravel wrapper for the Iminify image optimization API, with webhooks and an optimizer for Spatie's Media Library",
     "keywords": [
+        "iminify",
         "laravel",
+        "image-optimization",
+        "image-compression",
+        "media-library",
+        "image-optimizer",
+        "spatie",
+        "webp",
         "mozex"
     ],
     "homepage": "https://github.com/mozex/iminify-laravel",
@@ -15,12 +22,24 @@
             "role": "Developer"
         }
     ],
+    "repositories": [
+        {
+            "type": "vcs",
+            "url": "https://github.com/mozex/iminify-php"
+        }
+    ],
     "require": {
         "php": "^8.2.0",
+        "guzzlehttp/guzzle": "^7.8.2|^8.0",
         "illuminate/console": "^12.69|^13.30",
+        "illuminate/container": "^12.69|^13.30",
         "illuminate/contracts": "^12.69|^13.30",
+        "illuminate/events": "^12.69|^13.30",
+        "illuminate/http": "^12.69|^13.30",
         "illuminate/process": "^12.69|^13.30",
+        "illuminate/routing": "^12.69|^13.30",
         "illuminate/support": "^12.69|^13.30",
+        "mozex/iminify-php": "dev-main",
         "spatie/laravel-package-tools": "^1.16"
     },
     "require-dev": {
@@ -32,7 +51,17 @@
         "pestphp/pest-plugin-type-coverage": "^3.5|^4.0.0|^5.0.1",
         "phpstan/extension-installer": "^1.4",
         "phpstan/phpstan-deprecation-rules": "^2.0",
-        "phpstan/phpstan-phpunit": "^2.0"
+        "phpstan/phpstan-phpunit": "^2.0",
+        "spatie/image-optimizer": "^1.10",
+        "spatie/laravel-image-optimizer": "^1.8",
+        "spatie/laravel-medialibrary": "^11.13"
+    },
+    "conflict": {
+        "spatie/image-optimizer": "<1.10.0"
+    },
+    "suggest": {
+        "spatie/laravel-image-optimizer": "To optimize uploads and any file through Iminify with its config list",
+        "spatie/laravel-medialibrary": "To optimize Media Library conversions and responsive images through Iminify"
     },
     "autoload": {
         "psr-4": {

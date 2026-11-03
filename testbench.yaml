@@ -1,2 +1,4 @@
 providers:
   - Mozex\Iminify\Laravel\IminifyServiceProvider
+  - Spatie\MediaLibrary\MediaLibraryServiceProvider
+  - Spatie\LaravelImageOptimizer\ImageOptimizerServiceProvider
