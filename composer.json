@@ -98,7 +98,10 @@
         "laravel": {
             "providers": [
                 "Mozex\\Iminify\\Laravel\\IminifyServiceProvider"
-            ]
+            ],
+            "aliases": {
+                "Iminify": "Mozex\\Iminify\\Laravel\\Facades\\Iminify"
+            }
         }
     },
     "minimum-stability": "dev",
