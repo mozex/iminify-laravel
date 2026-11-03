@@ -79,6 +79,15 @@ describe('its options', function () {
         'as laravel-image-optimizer builds it' => [fn (): IminifyOptimizer => (new IminifyOptimizer)->setOptions(['level' => 'lossless', 'timeout' => 15])],
     ]);
 
+    it('keeps the config\'s value where its own option is null', function () {
+        Config::set('iminify.optimizer.level', 'ultra');
+        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+
+        (new IminifyOptimizer(['level' => null]))->handle(new Image(jpeg()), new NullLogger);
+
+        expect(uploadFields())->toMatchArray(['level' => 'ultra']);
+    });
+
     it('leaves the level to the API when neither sets one', function () {
         Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
 
