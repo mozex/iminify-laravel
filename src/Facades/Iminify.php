@@ -32,7 +32,8 @@ class Iminify extends Facade
 {
     /**
      * Swaps the app's client for a fake that answers what you queue, in order, and keeps every
-     * call to assert on. The optimizer uses it too, and waiting never sleeps.
+     * call to assert on. The optimizer uses it too, and a wait never sleeps; the optimizer's
+     * pause after a rate limit goes through `Sleep`, so `Sleep::fake()` skips it.
      *
      * @param  array<array-key, array<array-key, mixed>|ApiResponse|\Throwable>  $answers
      */

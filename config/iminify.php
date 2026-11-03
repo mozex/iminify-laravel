@@ -19,7 +19,7 @@ return [
      * How many seconds one request may take before it fails. A wait for an
      * image is many requests, so this doesn't limit how long a wait takes.
      */
-    'timeout' => (int) env('IMINIFY_TIMEOUT', 30),
+    'timeout' => (int) (env('IMINIFY_TIMEOUT') ?: 30),
 
     /*
      * What the optimizer sends with each file it takes from Spatie's image
@@ -29,7 +29,7 @@ return [
      * is how many seconds it waits for one file before leaving it as it was.
      */
     'optimizer' => [
-        'level' => env('IMINIFY_LEVEL'),
+        'level' => env('IMINIFY_LEVEL') ?: null,
         'keep_metadata' => false,
         'timeout' => 120,
     ],

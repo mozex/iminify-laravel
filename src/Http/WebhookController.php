@@ -13,8 +13,8 @@ use Symfony\Component\HttpFoundation\Response;
 
 /**
  * The route `Route::iminifyWebhooks()` registers: it dispatches `WebhookReceivedEvent` for the
- * request `VerifyWebhookSignature` let through, and answers 204. Iminify waits only a few
- * seconds for the answer, so a listener with slow work belongs on the queue.
+ * request `VerifyWebhookSignature` let through, and answers 204. Iminify counts a slow answer
+ * as a failed send, so a listener with slow work belongs on the queue.
  */
 class WebhookController
 {

@@ -58,6 +58,27 @@ describe('the client', function () {
 });
 
 describe('the config', function () {
+    it('reads a blank line in .env as unset', function () {
+        $names = ['IMINIFY_TIMEOUT', 'IMINIFY_LEVEL'];
+
+        foreach ($names as $name) {
+            putenv("{$name}=");
+            $_ENV[$name] = $_SERVER[$name] = '';
+        }
+
+        try {
+            $config = require __DIR__.'/../config/iminify.php';
+        } finally {
+            foreach ($names as $name) {
+                putenv($name);
+                unset($_ENV[$name], $_SERVER[$name]);
+            }
+        }
+
+        expect($config['timeout'])->toBe(30)
+            ->and($config['optimizer']['level'])->toBeNull();
+    });
+
     it('fills a published group in from the defaults', function () {
         Config::set('iminify', ['api_key' => 'mine', 'optimizer' => ['level' => 'ultra']]);
 

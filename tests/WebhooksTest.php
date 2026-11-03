@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Route;
@@ -10,6 +11,7 @@ use Illuminate\Testing\TestResponse;
 use Mozex\Iminify\Enums\WebhookEventType;
 use Mozex\Iminify\Laravel\Events\WebhookReceivedEvent;
 use Mozex\Iminify\Laravel\Tests\Fakes\StrictCsrfToken;
+use Mozex\Iminify\Laravel\Tests\Fakes\StrictRequestForgery;
 use Mozex\Iminify\Testing\Fixtures;
 use Mozex\Iminify\Webhooks\WebhookVerifier;
 
@@ -46,13 +48,15 @@ function sendWebhook(string $body, ?string $signature): TestResponse
 }
 
 describe('a signed webhook', function () {
-    it('dispatches the event it read and answers 204, past the web group\'s CSRF check', function () {
-        app(Kernel::class)->appendMiddlewareToGroup('web', StrictCsrfToken::class);
+    it('dispatches the event it read and answers 204, past the web group\'s CSRF check and without a session', function () {
+        app(Kernel::class)->appendMiddlewareToGroup('web', class_exists(PreventRequestForgery::class) ? StrictRequestForgery::class : StrictCsrfToken::class);
         Route::middleware('web')->post('another', fn (): string => 'reached');
         $body = webhookBody();
 
         $this->call('POST', '/another')->assertStatus(419);
-        sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
+        $response = sendWebhook($body, (new WebhookVerifier(WEBHOOK_SECRET))->sign($body))->assertNoContent();
+
+        expect($response->headers->getCookies())->toBe([]);
 
         Event::assertDispatched(WebhookReceivedEvent::class, fn (WebhookReceivedEvent $event): bool => $event->event->id === 'delivery-1'
             && $event->event->type === WebhookEventType::ImageCompleted

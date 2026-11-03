@@ -37,15 +37,16 @@ Replace jpegoptim, pngquant, optipng, gifsicle and cwebp in `config/media-librar
 'image_optimizers' => [
     Mozex\Iminify\Laravel\IminifyOptimizer::class => [],
     Spatie\ImageOptimizer\Optimizers\Svgo::class => ['--disable=cleanupIDs'],
+    Spatie\ImageOptimizer\Optimizers\Avifenc::class => ['-a cq-level=23', '-j all', '--min 0', '--max 63', '--minalpha 0', '--maxalpha 63', '-a end-usage=q', '-a tune=ssim'],
 ],
 ```
 
-A list with only `IminifyOptimizer` in it silently gets Spatie's default binaries: Media Library's factory recognises only Spatie's seven built-in classes. That's the first thing to check when images aren't getting smaller.
+Svgo and avifenc stay for the SVG and AVIF files Iminify doesn't read. A list with only `IminifyOptimizer` in it silently gets Spatie's default binaries: spatie/image-optimizer's factory, which Media Library calls, recognizes only Spatie's seven built-in classes. That's the first thing to check when images aren't getting smaller.
 
 - For some conversions only, leave the config alone and call `->optimize(IminifyOptimizer::chain())` on those conversions.
-- Responsive images ignore the config and always run the binaries; `IMINIFY_RESPONSIVE_IMAGES=true` sends each width through Iminify.
+- Responsive images ignore the config and always run the binaries; `IMINIFY_RESPONSIVE_IMAGES=true` sends each width through the chain `image_optimizers` builds, with Iminify added when it's missing.
 - The original upload is never optimized, only conversions.
-- Queued conversions are fine: the optimizer carries only its options, never the key.
+- Queued conversions are fine: the optimizer carries only its options, never the key; an `api_key` option is dropped.
 - Each optimized file counts one image against the account's daily images: one per conversion, plus one per responsive width when that's on. `php artisan media-library:regenerate --only=<conversion>` optimizes existing media again and counts again.
 - Needs Media Library 11.23 or newer.
 
@@ -61,19 +62,19 @@ A list with only `IminifyOptimizer` in it silently gets Spatie's default binarie
 
 `ImageOptimizer::optimize($path)` and the `OptimizeImages` middleware then go through Iminify. The middleware waits for each file inside the request (a few seconds per image), so prefer a queued job for busy forms.
 
-## The optimizer's behaviour
+## The optimizer's behavior
 
 - Takes JPEG, PNG, WebP and GIF by the file's contents; SVG and AVIF stay with the rest of the chain.
-- Sends no format (the file keeps its own), no alt text request, and `ephemeral`, then deletes the image from the account once it's written back.
+- Sends no format (the file keeps its own), no alt text request, and `ephemeral`, then deletes the image from the account when it's done with the file, whether or not it wrote anything back.
 - Writes back only a smaller copy of the same type, and only when the file didn't change meanwhile.
 - `iminify.optimizer` sets `level` (`none`, `lossless`, `smart`, `ultra`; `IMINIFY_LEVEL`), `keep_metadata` and `timeout` (seconds per file, 120). Options in a config list override it: `IminifyOptimizer::class => ['level' => 'ultra']`.
-- On any failure (a spent allowance, a timeout, a refused key) it leaves the file as it was, dispatches `Mozex\Iminify\Laravel\Events\OptimizationSkippedEvent` (`$path`, `$reason`) and throws, which Spatie's chain logs to its logger (off by default) and moves past.
+- On any failure (a spent allowance, a timeout, a refused key) it leaves the file as it was, dispatches `Mozex\Iminify\Laravel\Events\OptimizationSkippedEvent` (`$path`, `$reason`) and throws, which Spatie's chain logs to its logger (off by default) and moves past. A listener's own exception is reported to the app's exception handler. A queued listener gets `$reason` as an `IminifyException` naming the original's class and message.
 
 ## Webhooks
 
 ```php
 // routes/web.php
-Route::iminifyWebhooks(); // POST /iminify/webhooks, named iminify.webhooks, without the CSRF check
+Route::iminifyWebhooks(); // POST /iminify/webhooks, named iminify.webhooks, without the CSRF check, session or cookies
 ```
 
 Set `IMINIFY_WEBHOOK_SECRET` to the `whsec_` secret from Settings, Webhooks. The route checks the signature against the raw body, answers 400 to anything else, and dispatches `Mozex\Iminify\Laravel\Events\WebhookReceivedEvent`:
@@ -86,7 +87,7 @@ Event::listen(function (WebhookReceivedEvent $received) {
 });
 ```
 
-`$received->event->id` repeats when a failed send is sent again. Iminify waits a few seconds for the answer, so slow listeners implement `ShouldQueue`.
+`$received->event->id` repeats when a failed send is sent again. Iminify counts a slow answer as a failed send (its webhooks guide states the limit), so slow listeners implement `ShouldQueue`.
 
 ## Tests
 

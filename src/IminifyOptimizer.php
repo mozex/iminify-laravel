@@ -6,6 +6,7 @@ namespace Mozex\Iminify\Laravel;
 
 use Closure;
 use Illuminate\Container\Container;
+use Illuminate\Contracts\Debug\ExceptionHandler;
 use Illuminate\Contracts\Events\Dispatcher;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Sleep;
@@ -39,6 +40,19 @@ class IminifyOptimizer extends BaseOptimizer
     public static function chain(array $options = []): OptimizerChain
     {
         return (new OptimizerChain)->addOptimizer(new static($options));
+    }
+
+    /**
+     * An `api_key` option is dropped: the key comes from `iminify.api_key`, and an option would
+     * travel in every queued conversion's payload.
+     *
+     * @param  array<array-key, mixed>  $options
+     */
+    public function setOptions(array $options = []): static
+    {
+        unset($options['api_key']);
+
+        return parent::setOptions($options);
     }
 
     public function handle(Image $image, LoggerInterface $logger): void
@@ -76,21 +90,33 @@ class IminifyOptimizer extends BaseOptimizer
     }
 
     /**
-     * A listener that throws can't take the place of what happened to the file.
+     * A listener that throws can't take the place of what happened to the file, so its
+     * exception is reported to the app and logged to the chain, and the optimizer's own goes on.
      */
     protected function skipped(Image $image, Throwable $exception, LoggerInterface $logger): void
     {
+        $container = Container::getInstance();
+
         try {
-            Container::getInstance()->make(Dispatcher::class)->dispatch(new OptimizationSkippedEvent($image->path(), $exception));
+            $container->make(Dispatcher::class)->dispatch(new OptimizationSkippedEvent($image->path(), $exception));
         } catch (Throwable $listenerException) {
             $logger->warning("A listener of OptimizationSkippedEvent failed: {$listenerException->getMessage()}");
+
+            if ($container->bound(ExceptionHandler::class)) {
+                $container->make(ExceptionHandler::class)->report($listenerException);
+            }
         }
+    }
+
+    protected static function isSet(mixed $value): bool
+    {
+        return $value !== null && $value !== '';
     }
 
     /**
      * Runs the parent's reading of the options with the config's values beneath them, and
      * puts the options back afterwards, so nothing from the config is kept in the object a
-     * queue serializes.
+     * queue serializes. A null or blank value, such as an empty line in `.env`, falls through.
      *
      * @template TResult
      *
@@ -102,8 +128,8 @@ class IminifyOptimizer extends BaseOptimizer
         $options = $this->options;
         $defaults = Config::get('iminify.optimizer', []);
 
-        $this->options = array_filter($options, fn (mixed $value): bool => $value !== null)
-            + (is_array($defaults) ? array_filter($defaults, fn (mixed $value): bool => $value !== null) : []);
+        $this->options = array_filter($options, static::isSet(...))
+            + (is_array($defaults) ? array_filter($defaults, static::isSet(...)) : []);
 
         try {
             return $read();

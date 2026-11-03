@@ -11,13 +11,14 @@ use Illuminate\Support\Facades\Route;
 use Mozex\Iminify\Laravel\IminifyOptimizer;
 use Mozex\Iminify\Laravel\IminifyServiceProvider;
 use Mozex\Iminify\Laravel\MediaLibrary\ResponsiveImageGenerator;
+use Mozex\Iminify\Laravel\Tests\Fakes\RecordingOptimizer;
 use Mozex\Iminify\Laravel\Tests\Fixtures\Post;
 use Spatie\ImageOptimizer\OptimizerChain;
 use Spatie\ImageOptimizer\OptimizerChainFactory;
+use Spatie\ImageOptimizer\Optimizers\Avifenc;
 use Spatie\ImageOptimizer\Optimizers\Jpegoptim;
 use Spatie\ImageOptimizer\Optimizers\Svgo;
 use Spatie\LaravelImageOptimizer\Middlewares\OptimizeImages;
-use Spatie\MediaLibrary\Conversions\Conversion;
 use Spatie\MediaLibrary\ResponsiveImages\Jobs\GenerateResponsiveImagesJob;
 use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator as MediaLibraryGenerator;
 
@@ -29,14 +30,6 @@ use Spatie\MediaLibrary\ResponsiveImages\ResponsiveImageGenerator as MediaLibrar
 function optimizerClasses(OptimizerChain $chain): array
 {
     return array_values(array_map(get_class(...), $chain->getOptimizers()));
-}
-
-/**
- * The chain a conversion will optimize with.
- */
-function conversionChain(Conversion $conversion): OptimizerChain
-{
-    return $conversion->getManipulations()->toArray()['optimize'][0];
 }
 
 beforeEach(function () {
@@ -100,15 +93,16 @@ describe('Media Library', function () {
         expect(app(MediaLibraryGenerator::class))->not->toBeInstanceOf(ResponsiveImageGenerator::class);
     });
 
-    it('optimizes each responsive width through Iminify once turned on, by the job Media Library queues', function () {
+    it('optimizes each responsive width through Iminify once turned on, beside the config\'s own, by the job Media Library queues', function () {
         Config::set('iminify.media_library.responsive_images', true);
-        Config::set('media-library.image_optimizers', [Svgo::class => []]);
+        Config::set('media-library.image_optimizers', [RecordingOptimizer::class => [], Svgo::class => []]);
         (new IminifyServiceProvider(app()))->packageBooted();
         $api = fakeApi();
 
         $media = Post::create()->addMedia(jpeg(400, 300))->withResponsiveImages()->toMediaCollection();
         $api->images = [];
         $api->requests = [];
+        RecordingOptimizer::$handled = 0;
 
         (new GenerateResponsiveImagesJob($media))->handle();
 
@@ -116,12 +110,25 @@ describe('Media Library', function () {
 
         expect(app(MediaLibraryGenerator::class))->toBeInstanceOf(ResponsiveImageGenerator::class)
             ->and($widths)->not->toBeEmpty()
-            ->and($api->uploadedNames())->toHaveCount(count($widths));
+            ->and($api->uploadedNames())->toHaveCount(count($widths))
+            ->and(RecordingOptimizer::$handled)->toBe(count($widths));
     });
 
-    it('carries the chain through a queued conversion with no key in it', function () {
+    it('builds the responsive chain from the config, adding Iminify where the list lacks it', function () {
+        $chain = fn (): OptimizerChain => (fn (): OptimizerChain => $this->optimizerChain())->call(app(ResponsiveImageGenerator::class));
+
+        Config::set('media-library.image_optimizers', [Svgo::class => [], Avifenc::class => []]);
+        $added = optimizerClasses($chain());
+
+        Config::set('media-library.image_optimizers', [IminifyOptimizer::class => [], Svgo::class => [], Avifenc::class => []]);
+
+        expect($added)->toBe([Svgo::class, Avifenc::class, IminifyOptimizer::class])
+            ->and(optimizerClasses($chain()))->toBe([IminifyOptimizer::class, Svgo::class, Avifenc::class]);
+    });
+
+    it('carries the chain through a queued conversion with no key in it, even one put in its options', function () {
         Config::set('iminify.api_key', 'a-secret-key');
-        Config::set('media-library.image_optimizers', [IminifyOptimizer::class => [], Svgo::class => []]);
+        Config::set('media-library.image_optimizers', [IminifyOptimizer::class => ['api_key' => 'a-secret-key'], Svgo::class => []]);
         Config::set('queue.default', 'sync');
         Post::$queued = true;
         $api = fakeApi();

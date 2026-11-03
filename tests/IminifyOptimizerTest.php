@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Exceptions;
 use Illuminate\Support\Sleep;
 use Mozex\Iminify\Client;
 use Mozex\Iminify\Exceptions\DailyLimitReachedException;
+use Mozex\Iminify\Exceptions\IminifyException;
 use Mozex\Iminify\Http\ApiRequest;
 use Mozex\Iminify\Laravel\Events\OptimizationSkippedEvent;
 use Mozex\Iminify\Laravel\Facades\Iminify;
@@ -79,13 +81,27 @@ describe('its options', function () {
         'as laravel-image-optimizer builds it' => [fn (): IminifyOptimizer => (new IminifyOptimizer)->setOptions(['level' => 'lossless', 'timeout' => 15])],
     ]);
 
-    it('keeps the config\'s value where its own option is null', function () {
+    it('keeps the config\'s value where its own option is null or blank', function (mixed $own) {
         Config::set('iminify.optimizer.level', 'ultra');
         Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
 
-        (new IminifyOptimizer(['level' => null]))->handle(new Image(jpeg()), new NullLogger);
+        (new IminifyOptimizer(['level' => $own]))->handle(new Image(jpeg()), new NullLogger);
 
         expect(uploadFields())->toMatchArray(['level' => 'ultra']);
+    })->with([null, '']);
+
+    it('sends no level when the config\'s is blank, as an empty line in .env leaves it', function () {
+        Config::set('iminify.optimizer.level', '');
+        Iminify::fake([Fixtures::image(['status' => 'already-optimized']), Fixtures::image(['status' => 'already-optimized']), Fixtures::noContent()]);
+
+        (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger);
+
+        expect(array_key_exists('level', uploadFields()))->toBeFalse();
+    });
+
+    it('drops an api_key from its options, since the key comes from the config', function () {
+        expect((new IminifyOptimizer(['api_key' => 'a-key', 'level' => 'smart']))->options)->toBe(['level' => 'smart'])
+            ->and((new IminifyOptimizer)->setOptions(['api_key' => 'a-key'])->options)->toBe([]);
     });
 
     it('leaves the level to the API when neither sets one', function () {
@@ -132,14 +148,34 @@ describe('a file it leaves as it was', function () {
         Event::assertDispatched(OptimizationSkippedEvent::class, fn (OptimizationSkippedEvent $event): bool => $event->path === $path && $event->reason instanceof DailyLimitReachedException);
     });
 
-    it('keeps the reason when a listener of the event throws', function () {
+    it('keeps the reason when a listener of the event throws, and reports the listener\'s exception', function () {
+        Exceptions::fake();
         Event::listen(OptimizationSkippedEvent::class, function (): void {
             throw new RuntimeException('A broken listener');
         });
         Iminify::fake([Fixtures::refusal('daily_limit_reached', 429)]);
 
-        (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger);
-    })->throws(DailyLimitReachedException::class);
+        expect(fn () => (new IminifyOptimizer)->handle(new Image(jpeg()), new NullLogger))->toThrow(DailyLimitReachedException::class);
+
+        Exceptions::assertReported(fn (RuntimeException $exception): bool => $exception->getMessage() === 'A broken listener');
+    });
+
+    it('reaches a queued listener with its reason in words a queue can carry', function () {
+        $events = [];
+        Event::listen(OptimizationSkippedEvent::class, function (OptimizationSkippedEvent $event) use (&$events): void {
+            $events[] = $event;
+        });
+        Iminify::fake([Fixtures::refusal('daily_limit_reached', 429, 'Out for today.')]);
+        $path = jpeg();
+
+        expect(fn () => (new IminifyOptimizer)->handle(new Image($path), new NullLogger))->toThrow(DailyLimitReachedException::class);
+
+        $restored = unserialize(serialize($events[0]));
+
+        expect($restored->path)->toBe($path)
+            ->and($restored->reason)->toBeInstanceOf(IminifyException::class)
+            ->and($restored->reason->getMessage())->toBe('['.DailyLimitReachedException::class.'] Out for today.');
+    });
 
     it('sends no event for a file Iminify found nothing to save in', function () {
         Event::fake([OptimizationSkippedEvent::class]);
