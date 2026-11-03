@@ -1,6 +1,6 @@
 # iminify-laravel
 
-TODO(scaffold): one paragraph, in plain language, on what the package does and for whom.
+The Laravel wrapper for the Iminify image optimization API. It builds on `mozex/iminify-php` (the client, its resources, `FakeClient`, the webhook verifier and the plain-PHP Spatie optimizer) and adds what a Laravel app needs: the client in the container from `config/iminify.php`, an `Iminify` facade with `fake()`, an optimizer for laravel-image-optimizer and Media Library that takes its key from the config, Media Library's responsive images through Iminify, and a webhook route with its signature middleware and event.
 
 ## Commands
 
@@ -18,22 +18,43 @@ vendor/bin/pest --filter="test name here"   # one test
 
 ## Architecture
 
-TODO(scaffold): every directory and main class under src/ and what each one owns, and how they depend on each other.
+- `IminifyServiceProvider` (spatie/laravel-package-tools): `config/iminify.php`, the `iminify:install` command, `Mozex\Iminify\Client` as a lazy singleton (also `iminify`), the `Route::iminifyWebhooks()` macro, and the responsive images binding when `iminify.media_library.responsive_images` is on.
+- `Facades\Iminify`: the client, and `fake()` swapping in `Mozex\Iminify\Testing\FakeClient`.
+- `IminifyOptimizer` extends the PHP client's `Spatie\IminifyOptimizer`: `client()` from the container, `timeout()` and `uploadOptions()` with `iminify.optimizer` beneath its own options, `pause()` through `Sleep`, and `OptimizationSkippedEvent` before it rethrows. `chain()` is an `OptimizerChain` holding only it.
+- `MediaLibrary\ResponsiveImageGenerator`: Media Library's, with `generateResponsiveImage()` copied and its bare `optimize()` given `IminifyOptimizer::chain()`.
+- `Http\VerifyWebhookSignature` checks the raw body against `iminify.webhooks.secret` and puts the `WebhookEvent` on the request; `Http\WebhookController` dispatches `Events\WebhookReceivedEvent` and answers 204.
 
 ## Key design decisions
 
-TODO(scaffold): the decisions a future session would otherwise undo, each with its reason.
+- **The provider isn't deferred.** The install command, the route macro and the responsive images binding have to exist before anything asks for the client, and the client itself is only made when something does.
+- **The provider makes a Guzzle client with the config's `timeout`** and hands it to the factory. The PHP client's `withTimeout()` reaches only a client discovery found, and Guzzle never follows a redirect through PSR-18. Guzzle is in `require` because `src/` names it; every Laravel app has it already.
+- **The optimizer keeps nothing from the config in its properties.** Media Library queues the chain inside the conversion, so `withDefaults()` lays the config under the options for one read and puts them back; the key comes from the container's client when the job runs, never from a payload. A null option falls through to the config.
+- **Media Library's base `OptimizerChainFactory` ignores a list without one of Spatie's seven built-in classes** and runs its defaults. It's a static call with no binding to replace, so the docs say to keep Svgo in the list, and a test pins the trap.
+- **The responsive images generator copies Media Library's method.** The bare `optimize()` sits inside `generateResponsiveImage()` with nothing to hook, so the override repeats its body. A Media Library release that changes that method needs the copy brought along; the tests run it through `GenerateResponsiveImagesJob` at the lowest and newest versions.
+- **The webhook route leaves out every CSRF class a Laravel version has** (`PreventRequestForgery`, `ValidateCsrfToken`, `VerifyCsrfToken`), named as strings, since they live in `illuminate/foundation`. The router also leaves out their subclasses.
+- **A listener of `OptimizationSkippedEvent` that throws is logged to the chain's logger**, so it can't replace the exception that left the file alone.
+- **No validation of API options here**: they pass through to the client as sent, as the client does.
 
 ## Extension points
 
-TODO(scaffold): how users extend the package (config-bound classes, events, interfaces, macros), or delete this section when there are none.
+- Rebind `Mozex\Iminify\Client` in an app's provider for another HTTP client, proxy or headers; the facade and the optimizer follow it.
+- Extend `IminifyOptimizer` and list the subclass: `client()`, `uploadOptions()`, `timeout()` and `pause()` are protected.
+- Listen for `OptimizationSkippedEvent` and `WebhookReceivedEvent`.
 
 ## Testing
 
-TODO(scaffold): the test patterns and helpers, what runs against real tools or servers and how those tests skip themselves, and anything a test must clean up.
+- `tests/TestCase.php` sets an app key (the web group's cookies need one), an API key, a local `media` disk under the system's temporary folder, GD for Media Library and conversions off the queue, and creates `posts` and Media Library's `media` table from its own migration stub. `testbench.yaml` loads Media Library's and laravel-image-optimizer's providers.
+- `fakeApi()` (in `tests/Pest.php`) binds a client on `tests/Fakes/FakeIminifyApi`, which answers as the API would for a file whose size the test can't know: it keeps each upload and returns it as a low-quality JPEG. `Iminify::fake()` is for answers a test queues itself.
+- `tests/Fixtures/Post` is the Media Library model, with static flags for a queued conversion and a conversion's own chain.
+- `tests/Fakes/StrictCsrfToken` is Laravel's CSRF check with its unit-test bypass turned off, so the webhook test sees a 419 on a plain route and proves the macro leaves the check out.
+- `jpeg()` writes a real JPEG and the `afterEach` on the `uses()` chain removes it and the media disk.
+- On Windows, a file `UploadedFile::fake()` makes stays open, so nothing can replace it: the middleware test uses a real `UploadedFile` over a file it wrote.
 
 ## Development notes
 
 - `CHANGELOG.md` is generated from GitHub releases by the changelog workflow. Never edit it by hand.
 - The PHP floor is 8.2: no typed class constants (`public const string X`) and no `new Foo()->bar()` without wrapping parentheses. PHPStan's `type_coverage.constant` is 0 for that reason.
 - The package depends on split `illuminate/*` components, not `laravel/framework`, so `src/` uses facades and the container instead of foundation helpers (`config()`, `base_path()`, `now()`). Every `Illuminate\*` class or facade `src/` uses needs its component in `require`; testbench installs the whole framework, so a green suite doesn't prove it.
+- `mozex/iminify-php` comes from its GitHub repository through a `vcs` entry in `repositories` and a `dev-main` constraint until it's on Packagist; then the entry goes and the constraint becomes its first release's.
+- `spatie/image-optimizer` is in `require-dev` and `conflict` (below 1.10.0, which has no self-handling optimizers), and Media Library and laravel-image-optimizer in `require-dev` and `suggest`: an app brings the ones it uses. `MediaLibrary\ResponsiveImageGenerator` is loaded only when its config is on and Media Library is installed.
+- A change to the README is checked against the Boost skill and this file, and the reverse.
