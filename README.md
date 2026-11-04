@@ -261,7 +261,7 @@ Iminify::assertSent('GET', 'images/abc');
 
 The package ships a [Laravel Boost](https://laravel.com/docs/13.x/boost) skill, `iminify-laravel`, that shows an AI coding assistant how to set up the optimizer, the webhook route and the fake. Boost installs it with `php artisan boost:install` or `boost:update`, and the assistant loads it when a task touches Iminify.
 
-These docs are also on Context7 as [mozex/iminify-laravel](https://context7.com/mozex/iminify-laravel), built from this README with each release. With Context7's MCP server connected, ask for "the Context7 docs for mozex/iminify-laravel" when you want code that calls the package.
+These docs are also on Context7 as [mozex/iminify-laravel](https://context7.com/mozex/iminify-laravel), which indexes this README. With Context7's MCP server connected, ask for "the Context7 docs for mozex/iminify-laravel" when you want code that calls the package.
 
 To have the assistant compress, convert or scan images itself rather than write code that does it, connect it to Iminify's own MCP server: [connecting an app](https://www.iminify.com/docs/mcp#connecting-an-app) covers Claude, Claude Code, Cursor, VS Code and ChatGPT.
 
