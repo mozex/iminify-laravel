@@ -1,16 +1,16 @@
-[![Iminify Laravel](https://raw.githubusercontent.com/mozex/iminify-laravel/main/art/banner.png)](https://mozex.dev/docs/iminify-laravel)
+[![Iminify Laravel](https://raw.githubusercontent.com/mozex/iminify-laravel/main/art/banner.png)](https://www.iminify.com/docs/laravel)
 
 # Iminify Laravel
 
 [![Latest Version on Packagist](https://img.shields.io/packagist/v/mozex/iminify-laravel.svg?style=flat-square)](https://packagist.org/packages/mozex/iminify-laravel)
 [![GitHub Checks Workflow Status](https://img.shields.io/github/actions/workflow/status/mozex/iminify-laravel/checks.yml?branch=main&label=checks&style=flat-square)](https://github.com/mozex/iminify-laravel/actions/workflows/checks.yml)
-[![Docs](https://img.shields.io/badge/docs-mozex.dev-10B981?style=flat-square)](https://mozex.dev/docs/iminify-laravel/v1)
+[![Docs](https://img.shields.io/badge/docs-www.iminify.com-10B981?style=flat-square)](https://www.iminify.com/docs/laravel)
 [![License](https://img.shields.io/github/license/mozex/iminify-laravel.svg?style=flat-square)](https://packagist.org/packages/mozex/iminify-laravel)
 [![Total Downloads](https://img.shields.io/packagist/dt/mozex/iminify-laravel.svg?style=flat-square)](https://packagist.org/packages/mozex/iminify-laravel)
 
 [Iminify](https://www.iminify.com) for Laravel. It puts the [PHP client](https://github.com/mozex/iminify-php) in your app's container behind an `Iminify` facade, and plugs Iminify into Spatie's Media Library and laravel-image-optimizer, so conversions and uploads come out smaller with no jpegoptim, pngquant or cwebp on the server. It also has a webhook route that checks each signature and a fake for your tests.
 
-> **[Read the full documentation at mozex.dev](https://mozex.dev/docs/iminify-laravel/v1)**: searchable docs, version requirements, detailed changelog, and more.
+> **[Read the full documentation at www.iminify.com](https://www.iminify.com/docs/laravel)**: every guide and reference page, updated with each release.
 
 ## Table of Contents
 
@@ -26,6 +26,7 @@
 - [When a file can't be optimized](#when-a-file-cant-be-optimized)
 - [Webhooks](#webhooks)
 - [Faking Iminify in your tests](#faking-iminify-in-your-tests)
+- [AI coding assistants](#ai-coding-assistants)
 
 ## Support This Project
 
@@ -37,7 +38,7 @@ Business sponsors get logo placement in package READMEs. [**See sponsorship tier
 
 ## Installation
 
-> **Requires [PHP 8.2+](https://php.net/releases/)** - see [all version requirements](https://mozex.dev/docs/iminify-laravel/v1/requirements)
+> **Requires [PHP 8.2+](https://php.net/releases/)** - see [all version requirements](https://packagist.org/packages/mozex/iminify-laravel)
 
 ```bash
 composer require mozex/iminify-laravel
@@ -49,7 +50,7 @@ Then publish `config/iminify.php` with the install command:
 php artisan iminify:install
 ```
 
-Make an API key under Settings, API Tokens on [www.iminify.com](https://www.iminify.com), and put it in your `.env`:
+[Make an API key](https://www.iminify.com/docs/authentication#creating-a-key) under Settings, API Tokens on www.iminify.com, and put it in your `.env`:
 
 ```dotenv
 IMINIFY_API_KEY=your-key
@@ -128,7 +129,7 @@ The package then binds its own `ResponsiveImageGenerator`, which is Media Librar
 
 ### What it costs
 
-Each file the optimizer sends counts as one image against your plan's daily images, the same as an upload on the website. An upload to a model with a `thumb` and a `preview` conversion counts two. With responsive images on, every width counts one more, and Media Library usually makes several widths per image. `Iminify::account()->get()` tells you what's left today.
+Each file the optimizer sends counts as one image against [your plan's daily images](https://www.iminify.com/pricing), the same as an upload on the website. An upload to a model with a `thumb` and a `preview` conversion counts two. With responsive images on, every width counts one more, and Media Library usually makes several widths per image. `Iminify::account()->get()`, the API's [`GET /account`](https://www.iminify.com/docs/account#get-account), tells you what's left today.
 
 ### Optimizing again later
 
@@ -220,7 +221,7 @@ It answers at `/iminify/webhooks` under the name `iminify.webhooks`; pass anothe
 IMINIFY_WEBHOOK_SECRET=whsec_...
 ```
 
-The route checks the signature against the raw body, answers anything that doesn't match with a 400, and dispatches `WebhookReceivedEvent` for the rest:
+The route [checks the signature](https://www.iminify.com/docs/webhooks#checking-the-signature) against the raw body, answers anything that doesn't match with a 400, and dispatches `WebhookReceivedEvent` for the rest:
 
 ```php
 use Illuminate\Support\Facades\Event;
@@ -256,15 +257,21 @@ Iminify::assertSent('GET', 'images/abc');
 
 `Fixtures` holds an example answer for every record the API returns, and a queued exception is thrown in its turn. The optimizer waits out a rate limit with Laravel's `Sleep`, so `Sleep::fake()` keeps those waits out of your tests too. To test your webhook listener, sign a body with `(new WebhookVerifier($secret))->sign($body)` from the PHP client and post it to the route with the `Iminify-Signature` header.
 
+## AI coding assistants
+
+The package ships a [Laravel Boost](https://laravel.com/docs/13.x/boost) skill, `iminify-laravel`, that shows an AI coding assistant how to set up the optimizer, the webhook route and the fake. Boost installs it with `php artisan boost:install` or `boost:update`, and the assistant loads it when a task touches Iminify.
+
+These docs are also on Context7 as [mozex/iminify-laravel](https://context7.com/mozex/iminify-laravel), built from this README with each release. With Context7's MCP server connected, ask for "the Context7 docs for mozex/iminify-laravel" when you want code that calls the package.
+
+To have the assistant compress, convert or scan images itself rather than write code that does it, connect it to Iminify's own MCP server: [connecting an app](https://www.iminify.com/docs/mcp#connecting-an-app) covers Claude, Claude Code, Cursor, VS Code and ChatGPT.
+
 ## Resources
 
-Visit the [documentation site](https://mozex.dev/docs/iminify-laravel/v1) for searchable docs auto-updated from this repository.
+Visit the [documentation at www.iminify.com](https://www.iminify.com/docs/laravel) for every guide and reference page, updated from this repository with each release.
 
-- **[AI Integration](https://mozex.dev/docs/iminify-laravel/v1/ai-integration)**: Use this package with AI coding assistants via Context7 and Laravel Boost
-- **[Requirements](https://mozex.dev/docs/iminify-laravel/v1/requirements)**: PHP, Laravel, and dependency versions
-- **[Changelog](https://mozex.dev/docs/iminify-laravel/v1/changelog)**: Release history with linked pull requests and diffs
-- **[Contributing](https://mozex.dev/docs/iminify-laravel/v1/contributing)**: Development setup, code quality, and PR guidelines
-- **[Questions & Issues](https://mozex.dev/docs/iminify-laravel/v1/questions-and-issues)**: Bug reports, feature requests, and help
+- **[Requirements](https://packagist.org/packages/mozex/iminify-laravel)**: PHP, Laravel, and dependency versions
+- **[Changelog](https://github.com/mozex/iminify-laravel/blob/main/CHANGELOG.md)**: Release history with linked pull requests and diffs
+- **[Questions & Issues](https://github.com/mozex/iminify-laravel/issues/new/choose)**: Bug reports, feature requests, and help
 - **[Security](mailto:hello@mozex.dev)**: Report vulnerabilities directly via email
 
 ## License
